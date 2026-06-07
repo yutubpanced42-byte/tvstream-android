@@ -1,0 +1,51 @@
+name: Build APK from ZIP
+
+# Cara pakai (ramah HP):
+#   1. Upload file "tvstream-android.zip" ke root repo (1 file saja).
+#   2. Buat file ini di path: .github/workflows/build-from-zip.yml
+#   3. Tab Actions -> workflow "Build APK from ZIP" -> Run workflow.
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          echo "Mencari file zip..."
+          ZIP=$(ls *.zip | head -n1)
+          echo "Meng-extract: $ZIP"
+          unzip -o "$ZIP" -d _extracted
+          # Cari folder yang berisi settings.gradle (root project Android)
+          PROJ_DIR=$(dirname "$(find _extracted -name settings.gradle | head -n1)")
+          echo "PROJECT_DIR=$PROJ_DIR" >> $GITHUB_ENV
+          echo "Project Android ditemukan di: $PROJ_DIR"
+          ls -la "$PROJ_DIR"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TVStreamIntl-debug-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
